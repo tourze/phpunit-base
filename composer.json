@@ -2,7 +2,6 @@
   "name": "tourze/phpunit-base",
   "description": "",
   "type": "library",
-  "homepage": "https://github.com/tourze/phpunit-base",
   "license": "MIT",
   "require": {
     "composer-runtime-api": "^2.0"
