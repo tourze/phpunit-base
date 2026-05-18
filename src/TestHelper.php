@@ -9,6 +9,8 @@ namespace Tourze\PHPUnitBase;
  */
 class TestHelper
 {
+    const PATH_PREFIX = '/tmp/symfony-test-';
+
     /**
      * 生成测试用的临时目录
      *
@@ -20,7 +22,7 @@ class TestHelper
      */
     public static function generateTempDir(string $testClass, array $bundles, array $options, array $entityMappings = []): string
     {
-        $projectDir = '/tmp/symfony-test-'
+        $projectDir = self::PATH_PREFIX
             . explode('\\', $testClass)[0]
             . md5(serialize([$bundles, $options, $entityMappings]));
 
