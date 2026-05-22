@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Tourze\PHPUnitBase\Tests;
+namespace PHPUnitBase\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
-use Tourze\PHPUnitBase\AbstractExceptionTestCase;
+use PHPUnitBase\AbstractExceptionTestCase;
 
 /**
  * @internal
@@ -85,6 +85,6 @@ class AbstractExceptionTestCaseTest extends TestCase
         // 验证命名空间正确
         $reflection = new \ReflectionClass(AbstractExceptionTestCase::class);
 
-        $this->assertSame('Tourze\PHPUnitBase', $reflection->getNamespaceName());
+        $this->assertSame('PHPUnitBase', $reflection->getNamespaceName());
     }
 }

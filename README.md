@@ -1,12 +1,9 @@
-# phpunit-base
-
-
-
+# phpunit-base 测试组件
 
 ## 安装
 
 ```bash
-composer require tourze/phpunit-base
+composer require php-testing/phpunit-base
 ```
 
 ## 使用方法

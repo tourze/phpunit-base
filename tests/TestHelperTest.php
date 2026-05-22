@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Tourze\PHPUnitBase\Tests;
+namespace PHPUnitBase\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Tourze\PHPUnitBase\TestHelper;
+use PHPUnitBase\TestHelper;
 
 /**
  * @internal

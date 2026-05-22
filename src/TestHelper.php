@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tourze\PHPUnitBase;
+namespace PHPUnitBase;
 
 /**
  * 测试辅助工具类

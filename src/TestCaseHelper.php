@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tourze\PHPUnitBase;
+namespace PHPUnitBase;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 

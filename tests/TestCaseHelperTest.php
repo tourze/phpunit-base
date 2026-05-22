@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Tourze\PHPUnitBase\Tests;
+namespace PHPUnitBase\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
-use Tourze\PHPUnitBase\TestCaseHelper;
+use PHPUnitBase\TestCaseHelper;
 
 /**
  * @internal
@@ -33,8 +33,8 @@ class TestCaseHelperTest extends TestCase
     {
         return [
             // 包含 Tests 命名空间的类
-            ['App\Tests\UserTest', true],
-            ['App\Domain\Tests\ServiceTest', true],
+            ['AIOperaSystem\Tests\UserTest', true],
+            ['AIOperaSystem\Domain\Tests\ServiceTest', true],
             ['Some\Tests\Integration\DatabaseTest', true],
 
             // 以 Test 结尾的类
@@ -60,12 +60,12 @@ class TestCaseHelperTest extends TestCase
             ['Test\Integration\ServiceTest', true],
 
             // 非测试类
-            ['App\Domain\User', false],
-            ['App\Service\UserService', false],
-            ['App\Controller\UserController', false],
+            ['AIOperaSystem\Domain\User', false],
+            ['AIOperaSystem\Service\UserService', false],
+            ['AIOperaSystem\Controller\UserController', false],
             ['SomeRandomClass', false],
-            ['App\Domain\UserTestHelper', false], // 包含Test但不是以Test结尾
-            ['App\Domain\TestHelper', false], // 以Test开头但不是以Test结尾
+            ['AIOperaSystem\Domain\UserTestHelper', false], // 包含Test但不是以Test结尾
+            ['AIOperaSystem\Domain\TestHelper', false], // 以Test开头但不是以Test结尾
         ];
     }
 

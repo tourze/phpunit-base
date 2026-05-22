@@ -1,5 +1,5 @@
 {
-    "name": "tourze/phpunit-base",
+    "name": "php-testing/phpunit-base",
     "description": "",
     "type": "library",
     "license": "MIT",
@@ -13,12 +13,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Tourze\\PHPUnitBase\\": "src/"
+            "PHPUnitBase\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Tourze\\PHPUnitBase\\Tests\\": "tests/"
+            "PHPUnitBase\\Tests\\": "tests"
         }
     },
     "extra": {
