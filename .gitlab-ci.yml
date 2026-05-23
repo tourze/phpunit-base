@@ -1,0 +1,147 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+stages:
+  - prepare
+  - static
+  - test
+
+variables:
+  COMPOSER_ALLOW_SUPERUSER: "1"
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
+  # 可覆盖为预构建镜像（例如包含 composer/git/unzip 的内部镜像）。
+  CI_PHP_IMAGE: "php:8.2-cli"
+  # 核心扩展示例：gd、pcntl、intl、zip（空格分隔）。
+  CI_PHP_EXT_CORE: ""
+  # PECL 扩展示例：redis、xdebug（空格分隔）。
+  CI_PHP_EXT_PECL: ""
+
+.setup-php-extensions: &setup_php_extensions |
+  set -eu
+  core_exts="${CI_PHP_EXT_CORE:-}"
+  pecl_exts="${CI_PHP_EXT_PECL:-}"
+  if [ -z "$core_exts$pecl_exts" ]; then
+    echo "No extra PHP extensions requested"
+  else
+    extra_apt=""
+    case " $core_exts " in
+      *" gd "*) extra_apt="$extra_apt libfreetype6-dev libjpeg62-turbo-dev libpng-dev" ;;
+    esac
+
+    apt-get update
+    apt-get install -y --no-install-recommends $PHPIZE_DEPS $extra_apt
+
+    for ext in $core_exts; do
+      if php -m | grep -qi "^${ext}$"; then
+        continue
+      fi
+      case "$ext" in
+        gd)
+          docker-php-ext-configure gd --with-freetype --with-jpeg
+          docker-php-ext-install -j"$(nproc)" gd
+          ;;
+        *)
+          docker-php-ext-install -j"$(nproc)" "$ext"
+          ;;
+      esac
+    done
+
+    for ext in $pecl_exts; do
+      if php -m | grep -qi "^${ext}$"; then
+        continue
+      fi
+      yes '' | pecl install "$ext"
+      docker-php-ext-enable "$ext"
+    done
+
+    rm -rf /var/lib/apt/lists/*
+  fi
+
+default:
+  interruptible: true
+  cache:
+    key:
+      files:
+        - composer.lock
+      prefix: "composer-cache"
+    paths:
+      - .composer-cache/
+    policy: pull
+
+deps:
+  stage: prepare
+  image: "$CI_PHP_IMAGE"
+  cache:
+    key:
+      files:
+        - composer.lock
+      prefix: "composer-cache"
+    paths:
+      - .composer-cache/
+    policy: pull-push
+  before_script:
+    - |
+      if ! command -v git >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y --no-install-recommends git unzip curl
+        rm -rf /var/lib/apt/lists/*
+      fi
+    - *setup_php_extensions
+    - |
+      if ! command -v composer >/dev/null 2>&1; then
+        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+      fi
+    - php -v
+    - composer --version
+  script:
+    - composer validate --strict
+    - composer install --prefer-dist --no-progress --no-interaction
+  artifacts:
+    name: "vendor-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
+    expire_in: 8h
+    paths:
+      - vendor/
+      - composer.lock
+
+phpstan:
+  stage: static
+  image: "php:8.4-cli"
+  needs:
+    - job: deps
+      artifacts: true
+  cache:
+    key:
+      files:
+        - composer.lock
+      prefix: "composer-cache"
+    paths:
+      - .composer-cache/
+    policy: pull
+  script:
+    - *setup_php_extensions
+    - php -v
+    - ./vendor/bin/phpstan analyse src tests --level=5 --memory-limit=2G
+
+phpunit:
+  stage: test
+  image: "php:${PHP_VERSION}-cli"
+  needs:
+    - job: deps
+      artifacts: true
+  cache:
+    key:
+      files:
+        - composer.lock
+      prefix: "composer-cache"
+    paths:
+      - .composer-cache/
+    policy: pull
+  parallel:
+    matrix:
+      - PHP_VERSION: ["8.2", "8.3", "8.4"]
+  script:
+    - *setup_php_extensions
+    - php -v
+    - ./vendor/bin/phpunit tests
