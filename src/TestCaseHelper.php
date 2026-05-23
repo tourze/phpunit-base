@@ -37,7 +37,8 @@ class TestCaseHelper
     }
 
     /**
-     * @param \ReflectionClass<object> $classReflection
+     * @template T of object
+     * @param \ReflectionClass<T> $classReflection
      */
     public static function extractCoverClass(\ReflectionClass $classReflection): ?string
     {

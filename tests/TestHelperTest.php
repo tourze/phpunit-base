@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PHPUnitBase\Tests;
 
+require_once __DIR__ . '/bootstrap.php';
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -15,6 +17,18 @@ use PHPUnitBase\TestHelper;
 #[CoversClass(TestHelper::class)]
 class TestHelperTest extends TestCase
 {
+    private function cleanupTempDir(string $tempDir): void
+    {
+        $configFile = $tempDir . '/test.json';
+        if (is_file($configFile)) {
+            unlink($configFile);
+        }
+
+        if (is_dir($tempDir)) {
+            rmdir($tempDir);
+        }
+    }
+
     #[Test]
     public function testGenerateTempDir(): void
     {
@@ -42,7 +56,7 @@ class TestHelperTest extends TestCase
         $this->assertSame($entityMappings, $config['entityMappings']);
 
         // 清理测试目录
-        rmdir($tempDir);
+        $this->cleanupTempDir($tempDir);
     }
 
     #[Test]
@@ -59,9 +73,7 @@ class TestHelperTest extends TestCase
         $this->assertSame($tempDir1, $tempDir2);
 
         // 清理测试目录
-        if (is_dir($tempDir1)) {
-            rmdir($tempDir1);
-        }
+        $this->cleanupTempDir($tempDir1);
     }
 
     #[Test]
@@ -81,12 +93,8 @@ class TestHelperTest extends TestCase
         $this->assertNotSame($tempDir1, $tempDir2);
 
         // 清理测试目录
-        if (is_dir($tempDir1)) {
-            rmdir($tempDir1);
-        }
-        if (is_dir($tempDir2)) {
-            rmdir($tempDir2);
-        }
+        $this->cleanupTempDir($tempDir1);
+        $this->cleanupTempDir($tempDir2);
     }
 
     #[Test]
@@ -116,6 +124,6 @@ class TestHelperTest extends TestCase
         $this->assertSame($entityMappings, $config['entityMappings']);
 
         // 清理测试目录
-        rmdir($tempDir);
+        $this->cleanupTempDir($tempDir);
     }
 }
