@@ -4,6 +4,7 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
 stages:
+  - bootstrap
   - prepare
   - static
   - test
@@ -11,7 +12,8 @@ stages:
 variables:
   COMPOSER_ALLOW_SUPERUSER: "1"
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
-  # 可覆盖为预构建镜像（例如包含 composer/git/unzip 的内部镜像）。
+  CI_COMPOSER_IMAGE: "composer:2.9.8@sha256:b09bccd91a78fe8a9ab4b33d707b862e8fe54fec17782e32683ad2a69c46867d"
+  # 可覆盖为预构建 PHP 镜像。
   CI_PHP_IMAGE: "php:8.2-cli"
   # 核心扩展示例：gd、pcntl、intl、zip（空格分隔）。
   CI_PHP_EXT_CORE: ""
@@ -70,9 +72,29 @@ default:
       - .composer-cache/
     policy: pull
 
+composer-bin:
+  stage: bootstrap
+  image:
+    name: "$CI_COMPOSER_IMAGE"
+    entrypoint: [""]
+  cache: []
+  script:
+    - mkdir -p .ci-bin
+    - cp /usr/bin/composer .ci-bin/composer
+    - chmod 0755 .ci-bin/composer
+    - .ci-bin/composer --version
+  artifacts:
+    name: "composer-bin-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
+    expire_in: 1 week
+    paths:
+      - .ci-bin/composer
+
 deps:
   stage: prepare
   image: "$CI_PHP_IMAGE"
+  needs:
+    - job: composer-bin
+      artifacts: true
   cache:
     key:
       files:
@@ -83,16 +105,13 @@ deps:
     policy: pull-push
   before_script:
     - |
-      if ! command -v git >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+      if ! command -v git >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
         apt-get update
         apt-get install -y --no-install-recommends git unzip curl
         rm -rf /var/lib/apt/lists/*
       fi
+    - install -m 0755 .ci-bin/composer /usr/local/bin/composer
     - *setup_php_extensions
-    - |
-      if ! command -v composer >/dev/null 2>&1; then
-        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-      fi
     - php -v
     - composer --version
   script:
