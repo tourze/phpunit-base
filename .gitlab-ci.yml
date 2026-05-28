@@ -17,23 +17,61 @@ variables:
   CI_PHP_IMAGE: "php:8.2-cli"
   # 核心扩展示例：gd、pcntl、intl、zip（空格分隔）。
   CI_PHP_EXT_CORE: ""
-  # PECL 扩展示例：redis、xdebug（空格分隔）。
-  CI_PHP_EXT_PECL: ""
+  # PIE 扩展包使用 Composer 包名，例如 phpredis/phpredis、xdebug/xdebug。
+  CI_PHP_EXT_PIE: ""
+  CI_PIE_VERSION: "1.4.5"
+  # 多 repo 共享下载源时覆盖为 Nexus/内部静态镜像 URL；留空时使用固定版本 GitHub release。
+  CI_PIE_URL: ""
+  CI_PIE_SHA256: "6cdc03b8861b290d4e2a61147082a9f21dac5af572c66f0d121f266361499662"
+  CI_PIE_CACHE_DIR: ""
 
 .setup-php-extensions: &setup_php_extensions |
   set -eu
   core_exts="${CI_PHP_EXT_CORE:-}"
-  pecl_exts="${CI_PHP_EXT_PECL:-}"
-  if [ -z "$core_exts$pecl_exts" ]; then
+  pie_packages="${CI_PHP_EXT_PIE:-}"
+  project_dir="${CI_PROJECT_DIR:-$PWD}"
+  pie_version="${CI_PIE_VERSION:-1.4.5}"
+  pie_cache_dir="${CI_PIE_CACHE_DIR:-${project_dir}/.ci-cache/pie}"
+  pie_url="${CI_PIE_URL:-https://github.com/php/pie/releases/download/${pie_version}/pie.phar}"
+  if [ -z "$core_exts$pie_packages" ]; then
     echo "No extra PHP extensions requested"
   else
     extra_apt=""
     case " $core_exts " in
       *" gd "*) extra_apt="$extra_apt libfreetype6-dev libjpeg62-turbo-dev libpng-dev" ;;
     esac
+    case " $core_exts " in
+      *" intl "*) extra_apt="$extra_apt libicu-dev" ;;
+    esac
+    case " $core_exts " in
+      *" zip "*) extra_apt="$extra_apt libzip-dev zlib1g-dev" ;;
+    esac
+    case " $core_exts " in
+      *" gmp "*) extra_apt="$extra_apt libgmp-dev" ;;
+    esac
+    if [ -n "$pie_packages" ]; then
+      extra_apt="$extra_apt curl git unzip automake libtool m4"
+    fi
 
     apt-get update
     apt-get install -y --no-install-recommends $PHPIZE_DEPS $extra_apt
+
+    if [ -n "$pie_packages" ] && ! command -v pie >/dev/null 2>&1; then
+      mkdir -p "$pie_cache_dir"
+      pie_phar="${pie_cache_dir}/pie-${pie_version}.phar"
+      if [ -n "${CI_PIE_SHA256:-}" ] && [ -f "$pie_phar" ] && ! printf '%s  %s\n' "$CI_PIE_SHA256" "$pie_phar" | sha256sum -c - >/dev/null 2>&1; then
+        rm -f "$pie_phar"
+      fi
+      if [ ! -f "$pie_phar" ]; then
+        curl -fsSL "$pie_url" -o "${pie_phar}.tmp"
+        if [ -n "${CI_PIE_SHA256:-}" ]; then
+          printf '%s  %s\n' "$CI_PIE_SHA256" "${pie_phar}.tmp" | sha256sum -c -
+        fi
+        mv "${pie_phar}.tmp" "$pie_phar"
+      fi
+      install -m 0755 "$pie_phar" /usr/local/bin/pie
+      pie --version
+    fi
 
     for ext in $core_exts; do
       if php -m | grep -qi "^${ext}$"; then
@@ -50,12 +88,29 @@ variables:
       esac
     done
 
-    for ext in $pecl_exts; do
+    for package in $pie_packages; do
+      package_name="${package%%:*}"
+      case "$package_name" in
+        */*) ;;
+        *)
+          echo "PIE package must use a Composer package name, got '$package'" >&2
+          exit 1
+          ;;
+      esac
+      ext="${package_name##*/}"
+      case "$package_name" in
+        phpredis/phpredis|pie-extensions/redis) ext="redis" ;;
+      esac
       if php -m | grep -qi "^${ext}$"; then
         continue
       fi
-      yes '' | pecl install "$ext"
-      docker-php-ext-enable "$ext"
+      pie install --no-cache --no-interaction --auto-install-build-tools --auto-install-system-dependencies "$package"
+      if ! php --ri "$ext" >/dev/null 2>&1; then
+        echo "PHP extension '$ext' is not loadable after PIE install" >&2
+        php --ini || true
+        php -m || true
+        exit 1
+      fi
     done
 
     rm -rf /var/lib/apt/lists/*
@@ -64,13 +119,17 @@ variables:
 default:
   interruptible: true
   cache:
-    key:
-      files:
-        - composer.lock
-      prefix: "composer-cache"
-    paths:
-      - .composer-cache/
-    policy: pull
+    - key:
+        files:
+          - composer.lock
+        prefix: "composer-cache"
+      paths:
+        - .composer-cache/
+      policy: pull
+    - key: "php-pie-${CI_PIE_VERSION}"
+      paths:
+        - .ci-cache/pie/
+      policy: pull
 
 composer-bin:
   stage: bootstrap
@@ -96,13 +155,17 @@ deps:
     - job: composer-bin
       artifacts: true
   cache:
-    key:
-      files:
-        - composer.lock
-      prefix: "composer-cache"
-    paths:
-      - .composer-cache/
-    policy: pull-push
+    - key:
+        files:
+          - composer.lock
+        prefix: "composer-cache"
+      paths:
+        - .composer-cache/
+      policy: pull-push
+    - key: "php-pie-${CI_PIE_VERSION}"
+      paths:
+        - .ci-cache/pie/
+      policy: pull-push
   before_script:
     - |
       if ! command -v git >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
@@ -131,13 +194,17 @@ phpstan:
     - job: deps
       artifacts: true
   cache:
-    key:
-      files:
-        - composer.lock
-      prefix: "composer-cache"
-    paths:
-      - .composer-cache/
-    policy: pull
+    - key:
+        files:
+          - composer.lock
+        prefix: "composer-cache"
+      paths:
+        - .composer-cache/
+      policy: pull
+    - key: "php-pie-${CI_PIE_VERSION}"
+      paths:
+        - .ci-cache/pie/
+      policy: pull
   script:
     - *setup_php_extensions
     - php -v
@@ -150,13 +217,17 @@ phpunit:
     - job: deps
       artifacts: true
   cache:
-    key:
-      files:
-        - composer.lock
-      prefix: "composer-cache"
-    paths:
-      - .composer-cache/
-    policy: pull
+    - key:
+        files:
+          - composer.lock
+        prefix: "composer-cache"
+      paths:
+        - .composer-cache/
+      policy: pull
+    - key: "php-pie-${CI_PIE_VERSION}"
+      paths:
+        - .ci-cache/pie/
+      policy: pull
   parallel:
     matrix:
       - PHP_VERSION: ["8.2", "8.3", "8.4"]
