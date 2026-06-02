@@ -14,7 +14,7 @@ variables:
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
   CI_COMPOSER_IMAGE: "composer:2.9.8@sha256:b09bccd91a78fe8a9ab4b33d707b862e8fe54fec17782e32683ad2a69c46867d"
   # 可覆盖为预构建 PHP 镜像。
-  CI_PHP_IMAGE: "php:8.2-cli"
+  CI_PHP_IMAGE: "php:8.4-cli"
   # 核心扩展示例：gd、pcntl、intl、zip（空格分隔）。
   CI_PHP_EXT_CORE: ""
   # PIE 扩展包使用 Composer 包名，例如 phpredis/phpredis、xdebug/xdebug。
@@ -236,7 +236,7 @@ phpunit:
       policy: pull
   parallel:
     matrix:
-      - PHP_VERSION: ["8.2", "8.3", "8.4"]
+      - PHP_VERSION: ["8.4"]
   script:
     - *setup_php_extensions
     - php -v
