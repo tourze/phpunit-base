@@ -179,6 +179,12 @@ deps:
     - composer --version
   script:
     - composer validate --strict
+    - |
+      if [ -z "${COMPOSER_AUTH:-}" ]; then
+        echo "COMPOSER_AUTH is required for the composer proxy; configure it in GitLab CI/CD variables." >&2
+        exit 1
+      fi
+      php -r '$auth=json_decode(getenv("COMPOSER_AUTH") ?: "", true); $basic=$auth["http-basic"]["composer.gzcrm.cn"] ?? null; if (!is_array($basic) || empty($basic["username"]) || empty($basic["password"])) { fwrite(STDERR, "COMPOSER_AUTH must be valid JSON and include composer proxy http-basic username/password\n"); exit(1); }'
     - composer install --prefer-dist --no-progress --no-interaction
   artifacts:
     name: "vendor-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
