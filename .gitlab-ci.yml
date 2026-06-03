@@ -4,117 +4,13 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
 stages:
-  - bootstrap
   - prepare
   - static
   - test
 
 variables:
-  COMPOSER_ALLOW_SUPERUSER: "1"
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
-  CI_COMPOSER_IMAGE: "composer:2.9.8@sha256:b09bccd91a78fe8a9ab4b33d707b862e8fe54fec17782e32683ad2a69c46867d"
-  # 可覆盖为预构建 PHP 镜像。
-  CI_PHP_IMAGE: "php:8.4-cli"
-  # 核心扩展示例：gd、pcntl、intl、zip（空格分隔）。
-  CI_PHP_EXT_CORE: ""
-  # PIE 扩展包使用 Composer 包名，例如 phpredis/phpredis、xdebug/xdebug。
-  CI_PHP_EXT_PIE: ""
-  CI_PIE_VERSION: "1.4.5"
-  # 多 repo 共享下载源时覆盖为 Nexus/内部静态镜像 URL；留空时使用固定版本 GitHub release。
-  CI_PIE_URL: ""
-  CI_PIE_SHA256: "6cdc03b8861b290d4e2a61147082a9f21dac5af572c66f0d121f266361499662"
-  CI_PIE_CACHE_DIR: ""
-
-.setup-php-extensions: &setup_php_extensions |
-  set -eu
-  core_exts="${CI_PHP_EXT_CORE:-}"
-  pie_packages="${CI_PHP_EXT_PIE:-}"
-  project_dir="${CI_PROJECT_DIR:-$PWD}"
-  pie_version="${CI_PIE_VERSION:-1.4.5}"
-  pie_cache_dir="${CI_PIE_CACHE_DIR:-${project_dir}/.ci-cache/pie}"
-  pie_url="${CI_PIE_URL:-https://github.com/php/pie/releases/download/${pie_version}/pie.phar}"
-  if [ -z "$core_exts$pie_packages" ]; then
-    echo "No extra PHP extensions requested"
-  else
-    extra_apt=""
-    case " $core_exts " in
-      *" gd "*) extra_apt="$extra_apt libfreetype6-dev libjpeg62-turbo-dev libpng-dev" ;;
-    esac
-    case " $core_exts " in
-      *" intl "*) extra_apt="$extra_apt libicu-dev" ;;
-    esac
-    case " $core_exts " in
-      *" zip "*) extra_apt="$extra_apt libzip-dev zlib1g-dev" ;;
-    esac
-    case " $core_exts " in
-      *" gmp "*) extra_apt="$extra_apt libgmp-dev" ;;
-    esac
-    if [ -n "$pie_packages" ]; then
-      extra_apt="$extra_apt curl git unzip automake libtool m4"
-    fi
-
-    apt-get update
-    apt-get install -y --no-install-recommends $PHPIZE_DEPS $extra_apt
-
-    if [ -n "$pie_packages" ] && ! command -v pie >/dev/null 2>&1; then
-      mkdir -p "$pie_cache_dir"
-      pie_phar="${pie_cache_dir}/pie-${pie_version}.phar"
-      if [ -n "${CI_PIE_SHA256:-}" ] && [ -f "$pie_phar" ] && ! printf '%s  %s\n' "$CI_PIE_SHA256" "$pie_phar" | sha256sum -c - >/dev/null 2>&1; then
-        rm -f "$pie_phar"
-      fi
-      if [ ! -f "$pie_phar" ]; then
-        curl -fsSL "$pie_url" -o "${pie_phar}.tmp"
-        if [ -n "${CI_PIE_SHA256:-}" ]; then
-          printf '%s  %s\n' "$CI_PIE_SHA256" "${pie_phar}.tmp" | sha256sum -c -
-        fi
-        mv "${pie_phar}.tmp" "$pie_phar"
-      fi
-      install -m 0755 "$pie_phar" /usr/local/bin/pie
-      pie --version
-    fi
-
-    for ext in $core_exts; do
-      if php -m | grep -qi "^${ext}$"; then
-        continue
-      fi
-      case "$ext" in
-        gd)
-          docker-php-ext-configure gd --with-freetype --with-jpeg
-          docker-php-ext-install -j"$(nproc)" gd
-          ;;
-        *)
-          docker-php-ext-install -j"$(nproc)" "$ext"
-          ;;
-      esac
-    done
-
-    for package in $pie_packages; do
-      package_name="${package%%:*}"
-      case "$package_name" in
-        */*) ;;
-        *)
-          echo "PIE package must use a Composer package name, got '$package'" >&2
-          exit 1
-          ;;
-      esac
-      ext="${package_name##*/}"
-      case "$package_name" in
-        phpredis/phpredis|pie-extensions/redis) ext="redis" ;;
-      esac
-      if php -m | grep -qi "^${ext}$"; then
-        continue
-      fi
-      pie install --no-cache --no-interaction --auto-install-build-tools --auto-install-system-dependencies "$package"
-      if ! php --ri "$ext" >/dev/null 2>&1; then
-        echo "PHP extension '$ext' is not loadable after PIE install" >&2
-        php --ini || true
-        php -m || true
-        exit 1
-      fi
-    done
-
-    rm -rf /var/lib/apt/lists/*
-  fi
+  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.4-php8.4"
 
 default:
   interruptible: true
@@ -126,34 +22,10 @@ default:
       paths:
         - .composer-cache/
       policy: pull
-    - key: "php-pie-${CI_PIE_VERSION}"
-      paths:
-        - .ci-cache/pie/
-      policy: pull
-
-composer-bin:
-  stage: bootstrap
-  image:
-    name: "$CI_COMPOSER_IMAGE"
-    entrypoint: [""]
-  cache: []
-  script:
-    - mkdir -p .ci-bin
-    - cp /usr/bin/composer .ci-bin/composer
-    - chmod 0755 .ci-bin/composer
-    - .ci-bin/composer --version
-  artifacts:
-    name: "composer-bin-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
-    expire_in: 1 week
-    paths:
-      - .ci-bin/composer
 
 deps:
   stage: prepare
   image: "$CI_PHP_IMAGE"
-  needs:
-    - job: composer-bin
-      artifacts: true
   cache:
     - key:
         files:
@@ -162,29 +34,12 @@ deps:
       paths:
         - .composer-cache/
       policy: pull-push
-    - key: "php-pie-${CI_PIE_VERSION}"
-      paths:
-        - .ci-cache/pie/
-      policy: pull-push
   before_script:
-    - |
-      if ! command -v git >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-        apt-get update
-        apt-get install -y --no-install-recommends git unzip curl
-        rm -rf /var/lib/apt/lists/*
-      fi
-    - install -m 0755 .ci-bin/composer /usr/local/bin/composer
-    - *setup_php_extensions
+    - ci-composer-auth
     - php -v
     - composer --version
   script:
-    - composer validate --strict
-    - |
-      if [ -z "${COMPOSER_AUTH:-}" ]; then
-        echo "COMPOSER_AUTH is required for the composer proxy; configure it in GitLab CI/CD variables." >&2
-        exit 1
-      fi
-      php -r '$auth=json_decode(getenv("COMPOSER_AUTH") ?: "", true); $basic=$auth["http-basic"]["composer.gzcrm.cn"] ?? null; if (!is_array($basic) || empty($basic["username"]) || empty($basic["password"])) { fwrite(STDERR, "COMPOSER_AUTH must be valid JSON and include composer proxy http-basic username/password\n"); exit(1); }'
+    - composer validate
     - composer install --prefer-dist --no-progress --no-interaction
   artifacts:
     name: "vendor-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
@@ -195,49 +50,29 @@ deps:
 
 phpstan:
   stage: static
-  image: "php:8.4-cli"
+  image: "$CI_PHP_IMAGE"
   needs:
     - job: deps
       artifacts: true
-  cache:
-    - key:
-        files:
-          - composer.lock
-        prefix: "composer-cache"
-      paths:
-        - .composer-cache/
-      policy: pull
-    - key: "php-pie-${CI_PIE_VERSION}"
-      paths:
-        - .ci-cache/pie/
-      policy: pull
   script:
-    - *setup_php_extensions
     - php -v
     - ./vendor/bin/phpstan analyse src tests --level=5 --memory-limit=2G
 
 phpunit:
   stage: test
-  image: "php:${PHP_VERSION}-cli"
+  image: "$CI_PHP_IMAGE"
   needs:
     - job: deps
       artifacts: true
-  cache:
-    - key:
-        files:
-          - composer.lock
-        prefix: "composer-cache"
-      paths:
-        - .composer-cache/
-      policy: pull
-    - key: "php-pie-${CI_PIE_VERSION}"
-      paths:
-        - .ci-cache/pie/
-      policy: pull
-  parallel:
-    matrix:
-      - PHP_VERSION: ["8.4"]
   script:
-    - *setup_php_extensions
+    - |
+      redis-server --save "" --appendonly no --daemonize yes
+      for i in $(seq 1 30); do
+        if redis-cli ping >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+      redis-cli ping
     - php -v
     - ./vendor/bin/phpunit tests
