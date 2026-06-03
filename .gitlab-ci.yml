@@ -10,16 +10,14 @@ stages:
 
 variables:
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
-  COMPOSER_MIRROR_URL: "https://composer.gzcrm.cn/mirror/packagist"
-  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.4-php8.4"
-  PACKETON_URL: "https://composer.gzcrm.cn"
+  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.6-php8.4"
 
 default:
   interruptible: true
   cache:
     - key:
         files:
-          - composer.lock
+          - composer.json
         prefix: "composer-cache"
       paths:
         - .composer-cache/
@@ -31,7 +29,7 @@ deps:
   cache:
     - key:
         files:
-          - composer.lock
+          - composer.json
         prefix: "composer-cache"
       paths:
         - .composer-cache/
@@ -42,7 +40,12 @@ deps:
     - composer --version
   script:
     - composer validate
-    - composer install --prefer-dist --no-progress --no-interaction
+    - |
+      if [ -f composer.lock ]; then
+        composer install --prefer-dist --no-progress --no-interaction
+      else
+        composer update --prefer-dist --no-progress --no-interaction
+      fi
   artifacts:
     name: "vendor-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
     expire_in: 8h
