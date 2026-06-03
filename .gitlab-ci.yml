@@ -10,7 +10,9 @@ stages:
 
 variables:
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
+  COMPOSER_MIRROR_URL: "https://composer.gzcrm.cn/mirror/packagist"
   CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.4-php8.4"
+  PACKETON_URL: "https://composer.gzcrm.cn"
 
 default:
   interruptible: true
