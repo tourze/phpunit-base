@@ -9,8 +9,8 @@ stages:
   - test
 
 variables:
-  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
   CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.7-php8.4"
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
 
 default:
   interruptible: true
