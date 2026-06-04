@@ -10,7 +10,7 @@ stages:
 
 variables:
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
-  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.6-php8.4"
+  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.7-php8.4"
 
 default:
   interruptible: true
@@ -35,7 +35,6 @@ deps:
         - .composer-cache/
       policy: pull-push
   before_script:
-    - ci-composer-auth
     - php -v
     - composer --version
   script:
