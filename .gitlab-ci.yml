@@ -9,7 +9,7 @@ stages:
   - test
 
 variables:
-  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.7-php8.4"
+  CI_PHP_IMAGE: "registry.gzcrm.cn/php-group/ci-dockerfile:v0.1.10-php8.4"
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
 
 default:
@@ -39,12 +39,7 @@ deps:
     - composer --version
   script:
     - composer validate
-    - |
-      if [ -f composer.lock ]; then
-        composer install --prefer-dist --no-progress --no-interaction
-      else
-        composer update --prefer-dist --no-progress --no-interaction
-      fi
+    - composer-install
   artifacts:
     name: "vendor-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
     expire_in: 8h
@@ -69,14 +64,6 @@ phpunit:
     - job: deps
       artifacts: true
   script:
-    - |
-      redis-server --save "" --appendonly no --daemonize yes
-      for i in $(seq 1 30); do
-        if redis-cli ping >/dev/null 2>&1; then
-          break
-        fi
-        sleep 1
-      done
-      redis-cli ping
+    - redis-start
     - php -v
     - ./vendor/bin/phpunit tests
